@@ -27,23 +27,35 @@ final class CollectionViewCell: UICollectionViewCell {
         return label
     }()
 
+    lazy var imageView: UIImageView = {
+        let imageView = UIImageView()
+        imageView.translatesAutoresizingMaskIntoConstraints = false
+        imageView.contentMode = .scaleAspectFill
+        imageView.layer.cornerRadius = 10
+        imageView.clipsToBounds = true
+        addSubview(imageView)
+        return imageView
+    }()
+
     override init(frame: CGRect) {
         super.init(frame: frame)
-
-        layer.cornerRadius = 10
-        clipsToBounds = true
 
         setupConstraints()
     }
 
     func setupConstraints() {
         NSLayoutConstraint.activate([
-            label.topAnchor.constraint(equalTo: topAnchor, constant: 0),
-            label.leadingAnchor.constraint(equalTo:
-                leadingAnchor, constant: 0),
-            label.trailingAnchor.constraint(equalTo:
-                trailingAnchor, constant: 0),
-            label.bottomAnchor.constraint(equalTo: bottomAnchor, constant: 0),
+            label.topAnchor.constraint(equalTo: topAnchor),
+            label.leadingAnchor.constraint(equalTo: leadingAnchor),
+            label.trailingAnchor.constraint(equalTo: trailingAnchor),
+            label.bottomAnchor.constraint(equalTo: bottomAnchor),
+
+//            imageView.centerXAnchor.constraint(equalTo: centerXAnchor),
+//            imageView.centerYAnchor.constraint(equalTo: centerYAnchor),
+            imageView.topAnchor.constraint(equalTo: topAnchor),
+            imageView.leadingAnchor.constraint(equalTo: leadingAnchor),
+            imageView.trailingAnchor.constraint(equalTo: trailingAnchor),
+            imageView.bottomAnchor.constraint(equalTo: bottomAnchor),
         ])
     }
 
@@ -110,12 +122,12 @@ final class ViewController:
         // portreit
         heightConstraint1 = collectionView.heightAnchor.constraint(
             equalTo: view.widthAnchor,
-            multiplier: 0.4)
+            multiplier: 0.8 * 0.562)
 
         // landscape
         heightConstraint2 = collectionView.heightAnchor.constraint(
             equalTo: view.heightAnchor,
-            multiplier: 0.4)
+            multiplier: 0.8 * 0.562)
 
         NSLayoutConstraint.activate([
             lineView.topAnchor.constraint(
@@ -168,6 +180,13 @@ final class ViewController:
         cell.label.text = "\(indexPath)"
         let index = indexPath.row % colors.count
         cell.label.backgroundColor = colors[index]
+
+        if indexPath.row & 1 == 0 {
+            cell.imageView.image = UIImage(named: "right-bunner-1")!
+        } else {
+            cell.imageView.image = UIImage(named: "right-bunner-2")!
+        }
+
 //        cell.debugLayout(.black)
         return cell
     }
@@ -235,17 +254,17 @@ final class ViewController:
             // variant 2 (for left or center positions)
             let itemWidth = self.flowLayout.itemSize.width + self.flowLayout.minimumLineSpacing
             let boundWidth = self.collectionView.bounds.width
-            let paddingSide = (boundWidth - itemWidth) / 2
+            var paddingSide = (boundWidth - itemWidth) / 2
+//            paddingSide -= self.flowLayout.minimumLineSpacing / 2
             var x = CGFloat(newCellIndex)
             x *= self.flowLayout.itemSize.width + self.flowLayout.minimumLineSpacing
             // default center position, comment for left position
 //            x -= paddingSide
 
+            // calculate for less or greater bounds
             var maxX = self.collectionView.contentSize.width - self.flowLayout.itemSize.width
             maxX -= self.collectionView.bounds.width - self.flowLayout.itemSize.width
-
-            // calculate for less or greater bounds (optional)
-            let safeX = max(0, min(x, maxX))
+            let safeX =  max(0, min(x, maxX))
 
             let offset = CGPoint(x: safeX, y: 0)
             self.collectionView.setContentOffset(offset, animated: true)
