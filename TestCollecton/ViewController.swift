@@ -8,6 +8,31 @@
 
 import UIKit
 
+extension UIImage {
+    func resize(_ resize: CGSize) -> UIImage? {
+        let widthRatio = resize.width / size.width
+        let heightRatio = resize.height / size.height
+
+        var newSize: CGSize
+        if(widthRatio > heightRatio) {
+            newSize = CGSize(width: size.width * heightRatio,
+                             height: size.height * heightRatio)
+        } else {
+            newSize = CGSize(width: size.width * widthRatio,
+                             height: size.height * widthRatio)
+        }
+
+        let rect = CGRect(origin: .zero, size: newSize)
+
+        UIGraphicsBeginImageContextWithOptions(newSize, false, 1.0)
+        draw(in: rect)
+        let newImage = UIGraphicsGetImageFromCurrentImageContext()
+        UIGraphicsEndImageContext()
+
+        return newImage
+    }
+}
+
 extension UIView {
     func debugLayout(_ color: UIColor = .red) {
         layer.borderColor = color.cgColor
@@ -30,7 +55,7 @@ final class CollectionViewCell: UICollectionViewCell {
     lazy var imageView: UIImageView = {
         let imageView = UIImageView()
         imageView.translatesAutoresizingMaskIntoConstraints = false
-        imageView.contentMode = .scaleAspectFill
+        imageView.contentMode = .scaleAspectFit
         imageView.layer.cornerRadius = 10
         imageView.clipsToBounds = true
         addSubview(imageView)
@@ -64,12 +89,10 @@ final class CollectionViewCell: UICollectionViewCell {
     }
 }
 
-final class ViewController:
-    UIViewController,
-    UICollectionViewDelegate,
-    UICollectionViewDataSource,
-    UICollectionViewDelegateFlowLayout
-{
+final class ViewController: UIViewController {
+
+    // MARK: - Props
+
     let colors: [UIColor] = [.blue, .brown, .cyan, .green, .magenta]
 
     lazy var lineView: UIView = {
@@ -109,6 +132,8 @@ final class ViewController:
         return collectionView
     }()
 
+    // MARK: - Lifecycle
+
     override func viewDidLoad() {
         super.viewDidLoad()
 
@@ -119,7 +144,7 @@ final class ViewController:
     }
 
     func setupConstraints() {
-        // portreit
+        // portrait
         heightConstraint1 = collectionView.heightAnchor.constraint(
             equalTo: view.widthAnchor,
             multiplier: 0.8 * 0.562)
@@ -134,11 +159,14 @@ final class ViewController:
                 equalTo: view.safeAreaLayoutGuide.topAnchor),
             lineView.bottomAnchor.constraint(
                 equalTo: view.safeAreaLayoutGuide.bottomAnchor),
-            lineView.widthAnchor.constraint(equalToConstant: 1),
-            lineView.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            lineView.widthAnchor.constraint(
+                equalToConstant: 1),
+            lineView.centerXAnchor.constraint(
+                equalTo: view.centerXAnchor),
 
             collectionView.topAnchor.constraint(
-                equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 10),
+                equalTo: view.safeAreaLayoutGuide.topAnchor,
+                constant: 10),
             collectionView.leadingAnchor.constraint(
                 equalTo: view.safeAreaLayoutGuide.leadingAnchor),
             collectionView.trailingAnchor.constraint(
@@ -160,10 +188,66 @@ final class ViewController:
         view.layoutIfNeeded()
 
         let width = collectionView.bounds.width * 0.8
-        let height = collectionView.bounds.height
+        let height = collectionView.bounds.height //* 0.8
         flowLayout.itemSize = CGSize(width: width, height: height)
+//        flowLayout.itemSize = UICollectionViewFlowLayout.automaticSize
+//        flowLayout.estimatedItemSize = UICollectionViewFlowLayout.automaticSize
     }
 
+    // MARK: - Paging
+
+    var lastCellIndex: Int = 0
+
+    var thresholdVeolicy: CGFloat = 0.8
+
+    func currentCellIndex() -> Int {
+        // Perfect solution! Max frame cell on current bounds
+        flowLayout.layoutAttributesForElements(
+            in: collectionView.bounds
+        )?.max {
+            let bounds = collectionView.bounds
+            let width0 = bounds.intersection($0.frame).width
+            let width1 = bounds.intersection($1.frame).width
+            return width0 < width1
+        }?.indexPath.row ?? 0
+    }
+
+    func scrollViewDidScroll(_ scrollView: UIScrollView) {
+        print("offsetX", scrollView.contentOffset.x)
+        print("index", currentCellIndex())
+    }
+
+    func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
+        lastCellIndex = currentCellIndex()
+    }
+
+    func scrollViewWillEndDragging(
+        _ scrollView: UIScrollView,
+        withVelocity velocity: CGPoint,
+        targetContentOffset: UnsafeMutablePointer<CGPoint>)
+    {
+        // Stop scroll propagation
+        targetContentOffset.pointee = scrollView.contentOffset
+
+        var cellIndex = currentCellIndex()
+
+        // Swiped
+        if velocity.x > thresholdVeolicy {
+            let numberOfItems = collectionView(collectionView,
+                                               numberOfItemsInSection: 0)
+            cellIndex = min(lastCellIndex + 1, numberOfItems - 1)
+        } else if velocity.x < -thresholdVeolicy {
+            cellIndex = max(lastCellIndex - 1, 0)
+        }
+
+        let path = IndexPath(row: cellIndex, section: 0)
+        collectionView.scrollToItem(at: path,
+                                    at: .centeredHorizontally,
+                                    animated: true)
+    }
+}
+
+extension ViewController: UICollectionViewDataSource {
     func collectionView(_ collectionView: UICollectionView,
                         numberOfItemsInSection section: Int) -> Int
     {
@@ -177,128 +261,22 @@ final class ViewController:
         let cell = collectionView.dequeueReusableCell(
             withReuseIdentifier: CollectionViewCell.reuseIdentifier,
             for: indexPath) as! CollectionViewCell
+
         cell.label.text = "\(indexPath)"
         let index = indexPath.row % colors.count
         cell.label.backgroundColor = colors[index]
+        //        cell.debugLayout(.black)
 
-        if indexPath.row & 1 == 0 {
+        if indexPath.row % 2 == 0 {
             cell.imageView.image = UIImage(named: "right-bunner-1")!
         } else {
             cell.imageView.image = UIImage(named: "right-bunner-2")!
         }
 
-//        cell.debugLayout(.black)
         return cell
     }
-
-    var lastCellIndex: Int = 0
-
-    var thresholdVeolicy: CGFloat = 0.8
-
-    func currentCellIndex() -> Int {
-        let contentOffsetX = collectionView.contentOffset.x
-        let itemWidth = flowLayout.itemSize.width + flowLayout.minimumLineSpacing
-        let boundWidth = collectionView.bounds.width
-        let sectionInset = flowLayout.sectionInset
-        let paddingSide = (boundWidth - itemWidth) / 2
-        var relativeOffsetX = contentOffsetX + paddingSide
-        relativeOffsetX -= sectionInset.left / 2 + sectionInset.right / 2
-        relativeOffsetX /= itemWidth
-        let index = Int(round(relativeOffsetX))
-        return index
-    }
-
-    func scrollViewDidScroll(_ scrollView: UIScrollView) {
-        print("offsetX", scrollView.contentOffset.x)
-        print("index", currentCellIndex())
-    }
-
-    func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
-        lastCellIndex = currentCellIndex()
-    }
-
-//    // Example 1 (center or left positions)
-    var currentVelocity: CGPoint = .zero
-
-    func scrollViewWillEndDragging(
-        _ scrollView: UIScrollView,
-        withVelocity velocity: CGPoint,
-        targetContentOffset: UnsafeMutablePointer<CGPoint>)
-    {
-        currentVelocity = velocity
-    }
-
-    func scrollViewDidEndDragging(_ scrollView: UIScrollView,
-                                  willDecelerate decelerate: Bool)
-    {
-        var newCellIndex = currentCellIndex()
-
-        if newCellIndex == lastCellIndex {
-            if currentVelocity.x > thresholdVeolicy {
-                let numberOfItems = collectionView(collectionView,
-                                                   numberOfItemsInSection: 0)
-                newCellIndex = min(newCellIndex + 1, numberOfItems - 1)
-            } else if currentVelocity.x < -thresholdVeolicy {
-                newCellIndex = max(newCellIndex - 1, 0)
-            }
-        }
-
-        // required async
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) { [weak self] in
-            guard let self = self else { return }
-            // variant 1 (only for center position)
-//            let path = IndexPath(row: newCellIndex, section: 0)
-//            self.collectionView.scrollToItem(at: path,
-//                                             at: .centeredHorizontally,
-//                                             animated: true)
-            // variant 2 (for left or center positions)
-            let itemWidth = self.flowLayout.itemSize.width + self.flowLayout.minimumLineSpacing
-            let boundWidth = self.collectionView.bounds.width
-            var paddingSide = (boundWidth - itemWidth) / 2
-//            paddingSide -= self.flowLayout.minimumLineSpacing / 2
-            var x = CGFloat(newCellIndex)
-            x *= self.flowLayout.itemSize.width + self.flowLayout.minimumLineSpacing
-            // default center position, comment for left position
-//            x -= paddingSide
-
-            // calculate for less or greater bounds
-            var maxX = self.collectionView.contentSize.width - self.flowLayout.itemSize.width
-            maxX -= self.collectionView.bounds.width - self.flowLayout.itemSize.width
-            let safeX =  max(0, min(x, maxX))
-
-            let offset = CGPoint(x: safeX, y: 0)
-            self.collectionView.setContentOffset(offset, animated: true)
-        }
-    }
-
-//    // Example 2 (center)
-//    func scrollViewWillEndDragging(
-//        _ scrollView: UIScrollView,
-//        withVelocity velocity: CGPoint,
-//        targetContentOffset: UnsafeMutablePointer<CGPoint>)
-//    {
-//        // Stop scroll propagation
-//        targetContentOffset.pointee = scrollView.contentOffset
-//
-//        var newCellIndex = 0
-//
-//        if abs(velocity.x) > thresholdVeolicy {
-//            newCellIndex = lastCellIndex
-//
-//            if velocity.x > thresholdVeolicy {
-//                let numberOfItems = collectionView(collectionView,
-//                                                   numberOfItemsInSection: 0)
-//                newCellIndex = min(newCellIndex + 1, numberOfItems - 1)
-//            } else if velocity.x < -thresholdVeolicy {
-//                newCellIndex = max(newCellIndex - 1, 0)
-//            }
-//        } else {
-//            newCellIndex = currentCellIndex()
-//        }
-//
-//        let path = IndexPath(row: newCellIndex, section: 0)
-//        collectionView.scrollToItem(at: path,
-//                                    at: .centeredHorizontally,
-//                                    animated: true)
-//    }
 }
+
+extension ViewController: UICollectionViewDelegate { }
+
+extension ViewController: UICollectionViewDelegateFlowLayout { }
